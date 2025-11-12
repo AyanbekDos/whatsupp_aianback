@@ -19,6 +19,8 @@ env/
 
 # Local data
 conversation_logs/
+data/
+!data/.gitkeep
 
 # VS Code / IDE
 .vscode/
