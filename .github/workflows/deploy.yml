@@ -31,20 +31,17 @@ jobs:
             set -e
             cd /home/ubuntu/apps/whatsupp
 
+            # Создаем директории если нужно
+            mkdir -p logs
+
             # Создаем venv если его нет
             if [ ! -d venv ]; then
               python3 -m venv venv
             fi
 
-            # Устанавливаем зависимости
-            source venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
+            # Делаем скрипт исполняемым
+            chmod +x deploy.sh
 
-            # Перезапускаем сервисы (требуется настройка sudoers)
-            sudo systemctl restart whatsapp-webhook telegram-leadbot
-
-            # Проверяем статус
-            sudo systemctl status whatsapp-webhook --no-pager
-            sudo systemctl status telegram-leadbot --no-pager
+            # Запускаем deploy скрипт
+            ./deploy.sh
           EOF
