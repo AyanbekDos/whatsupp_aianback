@@ -1,4 +1,4 @@
-name: Deploy to DigitalOcean
+name: Deploy whatsupp_aianback to DigitalOcean
 
 on:
   push:
@@ -10,30 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Sync repository to droplet
-        uses: burnett01/rsync-deployments@v6.0
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.8.0
         with:
-          switches: -avzr --delete --exclude ".git/"
-          path: .
-          remote_path: /home/ubuntu/apps/whatsupp
-          remote_host: ${{ secrets.DO_SSH_HOST }}
-          remote_user: ${{ secrets.DO_SSH_USER }}
-          remote_key: ${{ secrets.DO_SSH_KEY }}
+          ssh-private-key: ${{ secrets.DO_SSH_KEY }}
+
+      - name: Upload sources via rsync
+        run: |
+          rsync -az --delete --exclude='.git/' --exclude='conversation_logs/' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ \
+            ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }}:/home/ubuntu/apps/whatsupp
 
       - name: Install dependencies and restart services
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DO_SSH_HOST }}
-          username: ${{ secrets.DO_SSH_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
-          script: |
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} <<'EOF'
+            set -e
             cd /home/ubuntu/apps/whatsupp
             if [ ! -d venv ]; then
               python3 -m venv venv
             fi
-            /home/ubuntu/apps/whatsupp/venv/bin/pip install --upgrade pip
-            /home/ubuntu/apps/whatsupp/venv/bin/pip install -r requirements.txt
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
             sudo systemctl restart whatsapp-webhook telegram-leadbot
+          EOF
