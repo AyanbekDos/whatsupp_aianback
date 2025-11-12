@@ -1,0 +1,16 @@
+{
+      "entry": [{
+        "changes": [{
+          "value": {
+            "contacts": [{"wa_id": "12345", "profile": {"name": "Test User"}}],
+            "messages": [{
+              "from": "12345",
+              "id": "wamid.test",
+              "timestamp": "0",
+              "type": "text",
+              "text": {"body": "ping"}
+            }]
+          }
+        }]
+      }]
+    }

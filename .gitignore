@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+
+# Virtual environments
+venv/
+.venv/
+env/
+.envrc
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local data
+conversation_logs/
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
