@@ -30,11 +30,21 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} <<'EOF'
             set -e
             cd /home/ubuntu/apps/whatsupp
+
+            # Создаем venv если его нет
             if [ ! -d venv ]; then
               python3 -m venv venv
             fi
+
+            # Устанавливаем зависимости
             source venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
+
+            # Перезапускаем сервисы (требуется настройка sudoers)
             sudo systemctl restart whatsapp-webhook telegram-leadbot
+
+            # Проверяем статус
+            sudo systemctl status whatsapp-webhook --no-pager
+            sudo systemctl status telegram-leadbot --no-pager
           EOF
