@@ -47,17 +47,41 @@ ENABLE_DAILY_ANALYTICS = os.getenv("ENABLE_DAILY_ANALYTICS", "true").lower() not
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "z-ai/glm-4.5-air:free")
 OPENROUTER_URL = os.getenv("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
-OPENROUTER_SYSTEM_PROMPT = os.getenv(
-    "OPENROUTER_SYSTEM_PROMPT",
-    "Ты дружелюбный ассистент отдела продаж. Собираешь контакты, отвечаешь по делу, "
-    "если нужно — предлагаешь консультацию менеджера.",
-)
+OPENROUTER_SYSTEM_PROMPT_FILE = os.getenv("OPENROUTER_SYSTEM_PROMPT_FILE", "system_prompt.txt")
 OPENROUTER_REFERRER = os.getenv("OPENROUTER_REFERRER", "https://example.com")
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "TelegramLeadBot")
 ENABLE_AI_AUTOREPLY = os.getenv("ENABLE_AI_AUTOREPLY", "true").lower() not in {"0", "false", "no"}
 
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN is required")
+
+
+DEFAULT_SYSTEM_PROMPT = (
+    "Ты дружелюбный ассистент отдела продаж. Собираешь контакты, отвечаешь по делу, "
+    "если нужно — предлагаешь консультацию менеджера."
+)
+
+
+def _load_system_prompt() -> str:
+    prompt_env = os.getenv("OPENROUTER_SYSTEM_PROMPT")
+    if prompt_env:
+        return prompt_env.strip()
+
+    path = Path(OPENROUTER_SYSTEM_PROMPT_FILE)
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+        logger.warning("System prompt file %s is empty; using default.", path)
+    except FileNotFoundError:
+        logger.warning("System prompt file %s not found; falling back to default.", path)
+    except OSError as exc:
+        logger.warning("Failed to read system prompt file %s: %s", path, exc)
+
+    return DEFAULT_SYSTEM_PROMPT
+
+
+OPENROUTER_SYSTEM_PROMPT = _load_system_prompt()
 
 
 def _get_analytics_tz():

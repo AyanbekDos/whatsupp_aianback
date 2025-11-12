@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple
 
 import requests
@@ -22,14 +23,37 @@ WA_PHONE_NUMBER_ID = os.getenv("WA_PHONE_NUMBER_ID")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "z-ai/glm-4.5-air:free")
 OPENROUTER_URL = os.getenv("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
-OPENROUTER_SYSTEM_PROMPT = os.getenv(
-    "OPENROUTER_SYSTEM_PROMPT",
-    "Ты виртуальный ассистент компании, отвечаешь уважительно, кратко и по делу. "
-    "Если не знаешь ответа — уточни детали.",
-)
+OPENROUTER_SYSTEM_PROMPT_FILE = os.getenv("OPENROUTER_SYSTEM_PROMPT_FILE", "system_prompt.txt")
 OPENROUTER_REFERRER = os.getenv("OPENROUTER_REFERRER", "https://example.com")
 OPENROUTER_TITLE = os.getenv("OPENROUTER_TITLE", "WhatsAppTelegramBridge")
 ENABLE_AI_AUTOREPLY = os.getenv("ENABLE_AI_AUTOREPLY", "true").lower() not in {"0", "false", "no"}
+
+DEFAULT_SYSTEM_PROMPT = (
+    "Ты виртуальный ассистент компании, отвечаешь уважительно, кратко и по делу. "
+    "Если не знаешь ответа — уточни детали."
+)
+
+
+def _load_system_prompt() -> str:
+    prompt_env = os.getenv("OPENROUTER_SYSTEM_PROMPT")
+    if prompt_env:
+        return prompt_env.strip()
+
+    path = Path(OPENROUTER_SYSTEM_PROMPT_FILE)
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+        logger.warning("System prompt file %s is empty; falling back to default.", path)
+    except FileNotFoundError:
+        logger.warning("System prompt file %s not found; using default prompt.", path)
+    except OSError as exc:
+        logger.warning("Failed to read system prompt file %s: %s", path, exc)
+
+    return DEFAULT_SYSTEM_PROMPT
+
+
+OPENROUTER_SYSTEM_PROMPT = _load_system_prompt()
 
 required_env = {
     "TELEGRAM_BOT_TOKEN": TELEGRAM_BOT_TOKEN,
