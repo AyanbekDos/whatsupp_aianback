@@ -25,12 +25,15 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
+from common.storage import storage
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 STATE_NAME, STATE_PHONE, STATE_QUESTION = range(3)
+TELEGRAM_CHANNEL = "telegram"
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_NOTIFY_CHAT_ID = os.getenv("TELEGRAM_NOTIFY_CHAT_ID")
@@ -135,6 +138,15 @@ async def _log_conversation_message(
     transcript.append({"role": role, "text": text, "timestamp": timestamp})
     _persist_log_entry(entry)
 
+    storage_role = "assistant" if role == "bot" else role
+    storage.save_client(
+        TELEGRAM_CHANNEL,
+        str(user.id),
+        name=user.full_name,
+        profile={"username": user.username},
+    )
+    storage.add_message(TELEGRAM_CHANNEL, str(user.id), storage_role, text)
+
     if TELEGRAM_LOG_CHAT_ID and send_to_log_chat:
         preview = f"[{timestamp}] {user.full_name} ({user.id})\n{role}: {text}"
         await context.bot.send_message(
@@ -193,24 +205,14 @@ def _call_openrouter(payload: Dict) -> Optional[str]:
     return content.strip()
 
 
-async def generate_ai_reply(customer_name: str, user_text: str, lead_data: Dict) -> Optional[str]:
+async def generate_ai_reply(user_id: str, user_text: str) -> Optional[str]:
     if not user_text:
         return None
 
+    history = storage.get_recent_messages(TELEGRAM_CHANNEL, user_id, limit=30)
     payload = {
         "model": OPENROUTER_MODEL,
-        "messages": [
-            {"role": "system", "content": OPENROUTER_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    f"Имя клиента: {customer_name or 'неизвестно'}\n"
-                    f"Телефон: {lead_data.get('phone', 'не указан')}\n"
-                    f"Первичный запрос: {lead_data.get('question', 'не указан')}\n"
-                    f"Сообщение клиента сейчас: {user_text}"
-                ),
-            },
-        ],
+        "messages": [{"role": "system", "content": OPENROUTER_SYSTEM_PROMPT}, *history],
     }
 
     loop = asyncio.get_running_loop()
@@ -231,6 +233,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def capture_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["name"] = update.message.text.strip()
     await _log_conversation_message(update.effective_user, context, "user", update.message.text)
+    storage.save_client(
+        TELEGRAM_CHANNEL,
+        str(update.effective_user.id),
+        name=context.user_data["name"],
+        profile={"username": update.effective_user.username},
+    )
     prompt = "Отлично. Оставьте, пожалуйста, номер телефона для связи."
     await update.message.reply_text(prompt)
     await _log_conversation_message(update.effective_user, context, "bot", prompt)
@@ -251,6 +259,13 @@ async def capture_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return STATE_PHONE
 
     context.user_data["phone"] = phone
+    storage.save_client(
+        TELEGRAM_CHANNEL,
+        str(update.effective_user.id),
+        name=context.user_data.get("name"),
+        phone=phone,
+        profile={"username": update.effective_user.username},
+    )
     follow_up = "Расскажите вкратце, какой вопрос или задача у вас?"
     await update.message.reply_text(follow_up)
     await _log_conversation_message(update.effective_user, context, "bot", follow_up)
@@ -269,11 +284,7 @@ async def capture_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await _log_conversation_message(update.effective_user, context, "bot", awaiting_text)
 
     await send_application(update, context)
-    reply = await generate_ai_reply(
-        context.user_data.get("name") or update.effective_user.full_name,
-        context.user_data["question"],
-        context.user_data,
-    )
+    reply = await generate_ai_reply(str(update.effective_user.id), context.user_data["question"])
     if reply:
         await update.message.reply_text(reply)
         await _log_conversation_message(update.effective_user, context, "bot", reply)
@@ -294,8 +305,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text.strip()
     await _log_conversation_message(update.effective_user, context, "user", text)
-    customer_name = context.user_data.get("name") or update.effective_user.full_name
-    reply = await generate_ai_reply(customer_name, text, context.user_data)
+    reply = await generate_ai_reply(str(update.effective_user.id), text)
 
     if reply:
         await update.message.reply_text(reply)

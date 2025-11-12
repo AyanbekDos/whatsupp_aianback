@@ -53,6 +53,6 @@ jobs:
             "cd /home/ubuntu/apps/whatsupp && \
              mkdir -p logs && \
              if [ ! -d venv ]; then python3 -m venv venv; fi && \
-             chmod +x deploy.sh && \
-             bash deploy.sh"
+             chmod +x scripts/deploy.sh && \
+             bash scripts/deploy.sh"
           echo "Deploy completed"

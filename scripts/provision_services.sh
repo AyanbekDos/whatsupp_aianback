@@ -24,7 +24,7 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=${VENV_PATH}/bin/gunicorn -b 127.0.0.1:${APP_PORT} app:app
+ExecStart=${VENV_PATH}/bin/gunicorn -b 127.0.0.1:${APP_PORT} app.main:app
 Restart=on-failure
 
 [Install]

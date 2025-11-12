@@ -6,6 +6,7 @@ from typing import Dict, Iterable, Optional, Tuple
 import requests
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+from common.storage import storage
 
 load_dotenv()
 
@@ -13,6 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+WHATSAPP_CHANNEL = "whatsapp"
 
 WA_TOKEN = os.getenv("WA_TOKEN")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -75,25 +77,29 @@ TELEGRAM_API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 WHATSAPP_API_BASE = f"https://graph.facebook.com/v19.0/{WA_PHONE_NUMBER_ID}" if WA_PHONE_NUMBER_ID else None
 
 
-def build_contact_index(contacts: Iterable[Dict]) -> Dict[str, str]:
-    index: Dict[str, str] = {}
+def build_contact_index(contacts: Iterable[Dict]) -> Dict[str, Dict]:
+    index: Dict[str, Dict] = {}
     for contact in contacts or []:
         wa_id = contact.get("wa_id")
         if not wa_id:
             continue
-        index[wa_id] = contact.get("profile", {}).get("name", "")
+        index[wa_id] = contact
     return index
 
 
-def iter_whatsapp_messages(payload: Dict) -> Iterable[Tuple[str, Dict]]:
+def iter_whatsapp_messages(payload: Dict) -> Iterable[Tuple[Dict, Dict]]:
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
             contact_index = build_contact_index(value.get("contacts", []))
             for message in value.get("messages", []):
                 sender = message.get("from", "unknown")
-                sender_name = contact_index.get(sender, "")
-                yield sender_name, message
+                contact = contact_index.get(sender, {})
+                yield contact, message
+
+
+def contact_display_name(contact: Dict) -> str:
+    return contact.get("profile", {}).get("name", "") if contact else ""
 
 
 def format_message(sender_name: str, message: Dict) -> str:
@@ -155,9 +161,11 @@ def send_to_telegram(text: str) -> bool:
     return True
 
 
-def generate_ai_reply(sender_name: str, user_message: str) -> Optional[str]:
+def generate_ai_reply(channel: str, user_id: str, sender_name: str, user_message: str) -> Optional[str]:
     if not ENABLE_AI_AUTOREPLY or not user_message:
         return None
+
+    history = storage.get_recent_messages(channel, user_id, limit=30)
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -168,13 +176,7 @@ def generate_ai_reply(sender_name: str, user_message: str) -> Optional[str]:
 
     payload = {
         "model": OPENROUTER_MODEL,
-        "messages": [
-            {"role": "system", "content": OPENROUTER_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"Клиент ({sender_name or 'неизвестно'}): {user_message}",
-            },
-        ],
+        "messages": [{"role": "system", "content": OPENROUTER_SYSTEM_PROMPT}, *history],
     }
 
     try:
@@ -234,6 +236,8 @@ def send_whatsapp_reply(recipient_id: str, text: str) -> bool:
         logger.error("WhatsApp API error: %s", response.text)
         return False
 
+    storage.add_message(WHATSAPP_CHANNEL, recipient_id, "assistant", text.strip())
+
     return True
 
 
@@ -258,14 +262,28 @@ def handle_whatsapp_webhook():
         return jsonify({"status": "ignored"}), 200
 
     forwarded = 0
-    for sender_name, message in iter_whatsapp_messages(payload):
+    for contact, message in iter_whatsapp_messages(payload):
+        sender_name = contact_display_name(contact)
+        sender_id = message.get("from", "unknown")
+
+        storage.save_client(
+            WHATSAPP_CHANNEL,
+            sender_id,
+            name=sender_name,
+            phone=sender_id,
+            profile=contact,
+        )
+
         text = format_message(sender_name, message)
         if send_to_telegram(text):
             forwarded += 1
 
         customer_text = extract_plain_text(message)
-        ai_reply = generate_ai_reply(sender_name, customer_text or "")
-        if ai_reply and send_whatsapp_reply(message.get("from", ""), ai_reply):
+        stored_text = customer_text or f"[{message.get('type', 'unknown')} message]"
+        storage.add_message(WHATSAPP_CHANNEL, sender_id, "user", stored_text, meta=message)
+
+        ai_reply = generate_ai_reply(WHATSAPP_CHANNEL, sender_id, sender_name, customer_text or "")
+        if ai_reply and send_whatsapp_reply(sender_id, ai_reply):
             send_to_telegram(f"🤖 Ответ, отправленный клиенту:\n{ai_reply}")
 
     return jsonify({"forwarded": forwarded}), 200

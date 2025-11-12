@@ -17,8 +17,8 @@ fi
 echo "==> Restarting services via systemd..."
 # Убиваем процессы - systemd автоматически перезапустит их (Restart=on-failure)
 # Используем pkill с опцией -TERM для graceful shutdown
-pkill -TERM -f "gunicorn.*app:app" && echo "Sent TERM to gunicorn" || echo "No gunicorn found"
-pkill -TERM -f "python.*telegram_bot.py" && echo "Sent TERM to telegram bot" || echo "No telegram bot found"
+pkill -TERM -f "gunicorn.*app.main:app" && echo "Sent TERM to gunicorn" || echo "No gunicorn found"
+pkill -TERM -f "python.*bot/telegram_bot.py" && echo "Sent TERM to telegram bot" || echo "No telegram bot found"
 
 echo "==> Waiting for systemd to restart services..."
 sleep 5
