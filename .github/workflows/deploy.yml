@@ -13,22 +13,41 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Debug - Check secrets
+        run: |
+          echo "Host: ${{ secrets.DO_SSH_HOST }}"
+          echo "User: ${{ secrets.DO_SSH_USER }}"
+          echo "Key length: $(echo '${{ secrets.DO_SSH_KEY }}' | wc -c)"
+          echo "Key first line: $(echo '${{ secrets.DO_SSH_KEY }}' | head -1)"
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DO_SSH_HOST }} >> ~/.ssh/known_hosts
+          echo "SSH key saved, checking format..."
+          head -1 ~/.ssh/deploy_key
+
+      - name: Test SSH connection
+        run: |
+          ssh-keyscan -H ${{ secrets.DO_SSH_HOST }} >> ~/.ssh/known_hosts 2>&1
+          echo "Trying SSH connection..."
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} \
+            "echo 'SSH connection successful'; whoami; hostname"
 
       - name: Upload sources via rsync
         run: |
-          rsync -az --delete --exclude='.git/' --exclude='conversation_logs/' \
+          echo "Starting rsync..."
+          rsync -avz --delete --exclude='.git/' --exclude='conversation_logs/' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             ./ \
             ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }}:/home/ubuntu/apps/whatsupp
+          echo "Rsync completed"
 
       - name: Install dependencies and restart
         run: |
+          echo "Running deploy script..."
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} \
             "cd /home/ubuntu/apps/whatsupp && \
@@ -36,3 +55,4 @@ jobs:
              if [ ! -d venv ]; then python3 -m venv venv; fi && \
              chmod +x deploy.sh && \
              bash deploy.sh"
+          echo "Deploy completed"
