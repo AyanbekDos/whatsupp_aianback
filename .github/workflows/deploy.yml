@@ -13,26 +13,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.DO_SSH_KEY }}
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DO_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DO_SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Upload sources via rsync
         run: |
           rsync -az --delete --exclude='.git/' --exclude='conversation_logs/' \
-            -e "ssh -o StrictHostKeyChecking=no" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             ./ \
             ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }}:/home/ubuntu/apps/whatsupp
 
-      - name: Test SSH connection
+      - name: Install dependencies and restart
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} "echo 'SSH works'; whoami; pwd"
-
-      - name: Create venv if needed
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} "cd /home/ubuntu/apps/whatsupp && mkdir -p logs && if [ ! -d venv ]; then python3 -m venv venv; fi && echo 'venv ready'"
-
-      - name: Run deploy script
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} "cd /home/ubuntu/apps/whatsupp && chmod +x deploy.sh && bash deploy.sh"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} \
+            "cd /home/ubuntu/apps/whatsupp && \
+             mkdir -p logs && \
+             if [ ! -d venv ]; then python3 -m venv venv; fi && \
+             chmod +x deploy.sh && \
+             bash deploy.sh"
