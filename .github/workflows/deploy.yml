@@ -25,23 +25,14 @@ jobs:
             ./ \
             ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }}:/home/ubuntu/apps/whatsupp
 
-      - name: Install dependencies and restart services
+      - name: Test SSH connection
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} <<'EOF'
-            set -e
-            cd /home/ubuntu/apps/whatsupp
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} "echo 'SSH works'; whoami; pwd"
 
-            # Создаем директории если нужно
-            mkdir -p logs
+      - name: Create venv if needed
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} "cd /home/ubuntu/apps/whatsupp && mkdir -p logs && if [ ! -d venv ]; then python3 -m venv venv; fi && echo 'venv ready'"
 
-            # Создаем venv если его нет
-            if [ ! -d venv ]; then
-              python3 -m venv venv
-            fi
-
-            # Делаем скрипт исполняемым
-            chmod +x deploy.sh
-
-            # Запускаем deploy скрипт
-            ./deploy.sh
-          EOF
+      - name: Run deploy script
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} "cd /home/ubuntu/apps/whatsupp && chmod +x deploy.sh && bash deploy.sh"
