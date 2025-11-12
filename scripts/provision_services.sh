@@ -41,7 +41,7 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=${VENV_PATH}/bin/python telegram_bot.py
+ExecStart=${VENV_PATH}/bin/python -m bot.telegram_bot
 Restart=on-failure
 
 [Install]
