@@ -28,13 +28,13 @@ jobs:
           echo "SSH key saved, checking format..."
           head -1 ~/.ssh/deploy_key
 
-      - name: Test SSH connection
+      - name: Test SSH connection and create directory
         run: |
           ssh-keyscan -H ${{ secrets.DO_SSH_HOST }} >> ~/.ssh/known_hosts 2>&1
           echo "Trying SSH connection..."
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
             ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }} \
-            "echo 'SSH connection successful'; whoami; hostname"
+            "echo 'SSH connection successful'; whoami; hostname; mkdir -p /home/ubuntu/apps/whatsupp"
 
       - name: Upload sources via rsync
         run: |
