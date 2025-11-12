@@ -4,6 +4,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/home/ubuntu/apps/whatsupp}"
 APP_USER="${APP_USER:-ubuntu}"
 SERVER_NAME="${SERVER_NAME:-bot.smetai.online}"
+APP_PORT="${APP_PORT:-8080}"
 VENV_PATH="${VENV_PATH:-${APP_DIR}/venv}"
 
 UNIT_DIR="/etc/systemd/system"
@@ -23,7 +24,7 @@ Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="PYTHONUNBUFFERED=1"
-ExecStart=${VENV_PATH}/bin/gunicorn -b 127.0.0.1:8000 app:app
+ExecStart=${VENV_PATH}/bin/gunicorn -b 127.0.0.1:${APP_PORT} app:app
 Restart=on-failure
 
 [Install]
@@ -59,7 +60,7 @@ server {
     server_name ${SERVER_NAME};
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:${APP_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
