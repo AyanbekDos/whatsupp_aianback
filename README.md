@@ -121,3 +121,23 @@ python telegram_bot.py
 
 ## Health check
 `GET /healthz` возвращает `{"status":"ok"}` — удобно для мониторинга или проверок балансировщиками.
+
+## CI/CD (GitHub Actions → DigitalOcean)
+
+В репозитории лежит workflow `.github/workflows/deploy.yml`, который при каждом `push` в `main`:
+
+1. Клонирует репозиторий.
+2. Через `rsync` синхронизирует файлы в `/home/ubuntu/apps/whatsupp` на Droplet.
+3. Создаёт `venv`, ставит зависимости и перезапускает `whatsapp-webhook` / `telegram-leadbot`.
+
+Чтобы он заработал:
+
+- Сгенерируйте SSH-ключ для GitHub Actions (`ssh-keygen -t ed25519 -f ~/.ssh/whatsupp_ci`).
+- Публичный ключ добавьте в `/home/ubuntu/.ssh/authorized_keys` на сервере.
+- В GitHub → Settings → Secrets and variables → Actions создайте секреты:
+  - `DO_SSH_HOST` — `167.172.188.168`
+  - `DO_SSH_USER` — `ubuntu`
+  - `DO_SSH_KEY` — приватный ключ (содержимое `whatsupp_ci`).
+- Убедитесь, что на сервере уже лежит корректный `.env` и настроены systemd/unit + nginx.
+
+Теперь после `git push origin main` деплой произойдёт автоматически.
