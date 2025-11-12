@@ -39,7 +39,7 @@ jobs:
       - name: Upload sources via rsync
         run: |
           echo "Starting rsync..."
-          rsync -avz --delete --exclude='.git/' --exclude='conversation_logs/' \
+          rsync -avz --delete --exclude='.git/' --exclude='.env' --exclude='conversation_logs/' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             ./ \
             ${{ secrets.DO_SSH_USER }}@${{ secrets.DO_SSH_HOST }}:/home/ubuntu/apps/whatsupp
